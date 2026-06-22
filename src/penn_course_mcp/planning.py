@@ -17,6 +17,7 @@ from __future__ import annotations
 from itertools import combinations
 from typing import Any, Iterable
 
+
 DAY_NAMES: dict[str, str] = {
     "M": "Monday",
     "T": "Tuesday",
@@ -139,9 +140,7 @@ def missing_associated_warnings(
         associated = section.get("associated_sections") or []
         present = [a for a in associated if a.get("id") in chosen_ids]
         if associated and not present:
-            options = ", ".join(
-                f"{a.get('id')} ({a.get('activity')})" for a in associated
-            )
+            options = ", ".join(f"{a.get('id')} ({a.get('activity')})" for a in associated)
             warnings.append(
                 f"{sec_id} typically requires a companion section; none selected. "
                 f"Options: {options}"
@@ -196,9 +195,7 @@ def compare_courses(details: list[dict[str, Any]]) -> dict[str, Any]:
     return {"courses": [d.get("id") for d in details], "comparison": rows}
 
 
-def _course_matches(
-    course: dict[str, Any], target: str, match: str
-) -> bool:
+def _course_matches(course: dict[str, Any], target: str, match: str) -> bool:
     target_l = target.lower()
     attributes = course.get("attributes") or []
     pre_ngss = course.get("pre_ngss_requirements") or []

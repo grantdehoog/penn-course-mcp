@@ -6,6 +6,7 @@ from penn_course_mcp.client import PennCoursesClient
 from penn_course_mcp.config import Settings
 from penn_course_mcp.errors import CourseNotFound, ReviewAuthRequired
 
+
 BASE = "https://penncoursereview.com"
 
 
@@ -40,9 +41,7 @@ async def test_resolve_semester_passthrough():
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_course_caches(options_fixture, course_fixture):
-    respx.get(f"{BASE}/api/options/").mock(
-        return_value=httpx.Response(200, json=options_fixture)
-    )
+    respx.get(f"{BASE}/api/options/").mock(return_value=httpx.Response(200, json=options_fixture))
     sem = options_fixture["SEMESTER"]
     route = respx.get(f"{BASE}/api/base/{sem}/courses/CIS-1200/").mock(
         return_value=httpx.Response(200, json=course_fixture)
@@ -58,13 +57,9 @@ async def test_get_course_caches(options_fixture, course_fixture):
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_course_not_found(options_fixture):
-    respx.get(f"{BASE}/api/options/").mock(
-        return_value=httpx.Response(200, json=options_fixture)
-    )
+    respx.get(f"{BASE}/api/options/").mock(return_value=httpx.Response(200, json=options_fixture))
     sem = options_fixture["SEMESTER"]
-    respx.get(f"{BASE}/api/base/{sem}/courses/ZZZ-9999/").mock(
-        return_value=httpx.Response(404)
-    )
+    respx.get(f"{BASE}/api/base/{sem}/courses/ZZZ-9999/").mock(return_value=httpx.Response(404))
     client = make_client()
     with pytest.raises(CourseNotFound):
         await client.get_course("current", "ZZZ-9999")
@@ -83,9 +78,7 @@ async def test_get_review_requires_cookie():
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_review_403_maps_to_auth_required():
-    respx.get(f"{BASE}/api/review/course/CIS-1200").mock(
-        return_value=httpx.Response(403)
-    )
+    respx.get(f"{BASE}/api/review/course/CIS-1200").mock(return_value=httpx.Response(403))
     client = make_client(session_cookie="sessionid=bad")
     with pytest.raises(ReviewAuthRequired):
         await client.get_review("CIS-1200")

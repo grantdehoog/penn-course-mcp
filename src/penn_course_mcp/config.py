@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from . import __version__
 
+
 DEFAULT_BASE_URL = "https://penncoursereview.com"
 DEFAULT_SEMESTER = "current"
 DEFAULT_CACHE_TTL = 3600
@@ -59,8 +60,6 @@ class Settings:
             semester=os.environ.get("PENN_COURSES_SEMESTER", DEFAULT_SEMESTER),
             cache_ttl=_get_int("PENN_COURSES_CACHE_TTL", DEFAULT_CACHE_TTL),
             timeout=_get_float("PENN_COURSES_TIMEOUT", DEFAULT_TIMEOUT),
-            user_agent=os.environ.get(
-                "PENN_COURSES_USER_AGENT", f"penn-course-mcp/{__version__}"
-            ),
+            user_agent=os.environ.get("PENN_COURSES_USER_AGENT", f"penn-course-mcp/{__version__}"),
             session_cookie=cookie,
         )

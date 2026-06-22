@@ -32,6 +32,17 @@ class ReviewAuthRequired(PennCoursesError):
         )
 
 
+class WriteAuthRequired(PennCoursesError):
+    """A write (schedule save/delete) needs an authenticated Penn session."""
+
+    def __init__(self, action: str = "modify schedules"):
+        self.action = action
+        super().__init__(
+            f"Authentication is required to {action}. Set PENN_COURSES_SESSION_COOKIE "
+            "to a logged-in Penn session cookie that includes both sessionid and csrftoken."
+        )
+
+
 class UpstreamError(PennCoursesError):
     """The upstream API returned an unexpected error or was unreachable."""
 

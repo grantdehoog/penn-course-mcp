@@ -15,20 +15,18 @@ from fastmcp import FastMCP
 from . import __version__
 from .client import PennCoursesClient
 from .config import Settings
-from .errors import CourseNotFound, PennCoursesError, ReviewAuthRequired, UpstreamError
-from .planning import (
-    build_schedule as _build_schedule,
+from .errors import (
+    CourseNotFound,
+    PennCoursesError,
+    ReviewAuthRequired,
+    UpstreamError,
+    WriteAuthRequired,
 )
-from .planning import (
-    compare_courses as _compare_courses,
-)
-from .planning import (
-    detect_conflicts as _detect_conflicts,
-)
-from .planning import (
-    filter_courses_by_attribute,
-    fmt_meeting,
-)
+from .planning import build_schedule as _build_schedule
+from .planning import compare_courses as _compare_courses
+from .planning import detect_conflicts as _detect_conflicts
+from .planning import filter_courses_by_attribute, fmt_meeting
+
 
 mcp = FastMCP(
     name="penn-course-mcp",
@@ -67,6 +65,14 @@ def _err(exc: Exception) -> dict[str, Any]:
         return {
             "error": str(exc),
             "hint": "Set PENN_COURSES_SESSION_COOKIE to enable detailed reviews.",
+        }
+    if isinstance(exc, WriteAuthRequired):
+        return {
+            "error": str(exc),
+            "hint": (
+                "Saving schedules requires a logged-in Penn session. Set "
+                "PENN_COURSES_SESSION_COOKIE to include both sessionid and csrftoken."
+            ),
         }
     if isinstance(exc, (UpstreamError, PennCoursesError)):
         return {"error": str(exc), "hint": "The Penn Courses API may be unavailable."}
@@ -170,9 +176,7 @@ async def search_courses(
 
 
 @mcp.tool
-async def get_course_details(
-    course_code: str, semester: str | None = None
-) -> dict[str, Any]:
+async def get_course_details(course_code: str, semester: str | None = None) -> dict[str, Any]:
     """Get full details for a course: description, prerequisites, attributes,
     crosslistings, aggregate ratings, and all sections with meeting times.
     """
@@ -207,11 +211,7 @@ async def list_course_sections(
     if open_only:
         sections = [s for s in sections if str(s.get("status", "")).upper() == "O"]
     if activity:
-        sections = [
-            s
-            for s in sections
-            if str(s.get("activity", "")).upper() == activity.upper()
-        ]
+        sections = [s for s in sections if str(s.get("activity", "")).upper() == activity.upper()]
     return {
         "course": course.get("id"),
         "count": len(sections),
@@ -223,9 +223,7 @@ async def list_course_sections(
 # tools — ratings & reviews
 # --------------------------------------------------------------------------
 @mcp.tool
-async def get_course_ratings(
-    course_code: str, semester: str | None = None
-) -> dict[str, Any]:
+async def get_course_ratings(course_code: str, semester: str | None = None) -> dict[str, Any]:
     """Return the public aggregate ratings for a course (always available).
 
     Includes course_quality, instructor_quality, difficulty, and work_required.
@@ -348,9 +346,7 @@ async def find_courses_by_requirement(
     return {
         "requirement": requirement,
         "count": len(matched),
-        "results": [
-            {"id": c.get("id"), "title": c.get("title")} for c in matched[: max(0, limit)]
-        ],
+        "results": [{"id": c.get("id"), "title": c.get("title")} for c in matched[: max(0, limit)]],
     }
 
 
@@ -378,9 +374,7 @@ async def check_schedule_conflicts(
 
 
 @mcp.tool
-async def build_schedule(
-    sections: list[str], semester: str | None = None
-) -> dict[str, Any]:
+async def build_schedule(sections: list[str], semester: str | None = None) -> dict[str, Any]:
     """Assemble a weekly schedule from section ids: total credits, a day-by-day
     grid, time conflicts, and warnings for missing required companion sections.
     """
@@ -394,9 +388,7 @@ async def build_schedule(
 
 
 @mcp.tool
-async def compare_courses(
-    course_codes: list[str], semester: str | None = None
-) -> dict[str, Any]:
+async def compare_courses(course_codes: list[str], semester: str | None = None) -> dict[str, Any]:
     """Compare courses side by side on ratings, difficulty, workload, credits, and
     prerequisites. Accepts a list of course codes (e.g. ['CIS-1200','CIS-1600']).
     """
@@ -459,6 +451,84 @@ async def recommend_courses(
         "order": "ascending" if ascending else "descending",
         "results": ranked[: max(0, limit)],
     }
+
+
+# --------------------------------------------------------------------------
+# tools — Penn Course Plan schedule writes (authenticated)
+# --------------------------------------------------------------------------
+@mcp.tool
+async def list_schedules() -> dict[str, Any]:
+    """List the saved schedules in your Penn Course Plan account (requires auth).
+
+    Returns each schedule's id, name, semester, and the section ids it contains —
+    handy for finding a ``schedule_id`` to update or delete.
+    """
+    client = get_client()
+    try:
+        schedules = await client.list_schedules()
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+    return {
+        "count": len(schedules),
+        "schedules": [
+            {
+                "id": s.get("id"),
+                "name": s.get("name"),
+                "semester": s.get("semester"),
+                "sections": [sec.get("id") for sec in s.get("sections") or []],
+            }
+            for s in schedules
+        ],
+    }
+
+
+@mcp.tool
+async def save_schedule(
+    name: str,
+    sections: list[str],
+    semester: str | None = None,
+    schedule_id: int | None = None,
+) -> dict[str, Any]:
+    """Save a schedule to your Penn Course Plan account so it appears on the website.
+
+    Creates a new schedule named ``name`` containing the given ``sections`` (full
+    section ids like 'CIS-1200-001'). Pass an existing ``schedule_id`` to overwrite
+    that schedule instead of creating a new one. **Writes to your live Penn account**
+    and requires PENN_COURSES_SESSION_COOKIE (sessionid + csrftoken).
+    """
+    client = get_client()
+    try:
+        result = await client.save_schedule(
+            name=name,
+            semester=semester,
+            section_ids=sections,
+            schedule_id=schedule_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+    return {
+        "saved": True,
+        "action": "updated" if schedule_id is not None else "created",
+        "schedule_id": result.get("id", schedule_id),
+        "name": name,
+        "sections": [s.upper() for s in sections],
+        "note": "Refresh penncourseplan.com and select this schedule to see it.",
+    }
+
+
+@mcp.tool
+async def delete_schedule(schedule_id: int) -> dict[str, Any]:
+    """Delete a saved Penn Course Plan schedule by its id (requires auth).
+
+    Use ``list_schedules`` to find the id first. This permanently removes the
+    schedule from your Penn Course Plan account.
+    """
+    client = get_client()
+    try:
+        await client.delete_schedule(schedule_id)
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+    return {"deleted": True, "schedule_id": schedule_id}
 
 
 # --------------------------------------------------------------------------

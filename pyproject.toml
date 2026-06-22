@@ -16,10 +16,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8",
+    "black==22.3.0",
+    "flake8==7.1.1",
+    "flake8-isort==6.1.1",
+    "flake8-quotes==3.4.0",
+    "isort==5.13.2",
+    "pytest==8.3.3",
     "pytest-asyncio>=0.23",
     "respx>=0.21",
-    "ruff>=0.5",
 ]
 
 [project.scripts]
@@ -35,7 +39,7 @@ packages = ["src/penn_course_mcp"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]
 
-[tool.ruff]
+[tool.black]
 line-length = 100
-target-version = "py310"
